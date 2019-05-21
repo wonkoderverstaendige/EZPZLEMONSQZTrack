@@ -1,16 +1,16 @@
+import argparse
+from collections import namedtuple
+from pathlib import Path
+
 import cv2
-import numpy as np
-from scipy import signal
-import matplotlib.pyplot as plt
 import matplotlib
+import matplotlib.pyplot as plt
+import numpy as np
+from math import sqrt
 from matplotlib.collections import LineCollection
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-
-from pathlib import Path
-from math import sqrt
-from collections import namedtuple
+from scipy import signal
 from tqdm.auto import tqdm
-import argparse
 
 # inspired by http://nipunbatra.github.io/2014/08/latexify/
 params = {
@@ -589,10 +589,14 @@ def figure_from_tracker(tracker):
     fig.savefig(tracker.base_path.with_suffix('.plot.png'))
 
 
-if __name__ == '__main__':
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('path', help='Path to video')
     cli_args = parser.parse_args()
 
     tracker = Tracker(cli_args.path)
     figure_from_tracker(tracker)
+
+
+if __name__ == '__main__':
+    main()

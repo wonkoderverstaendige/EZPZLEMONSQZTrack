@@ -58,8 +58,6 @@ class MaskGenerator:
     def __init__(self, path):
         self.path = Path(path)
         self.capture = VideoCapture(str(path))
-        if THREADED_CAPTURE:
-            self.capture.start()
 
         self.poly = []
         cv2.namedWindow("MaskMaker")
@@ -118,8 +116,6 @@ class LED_Finder:
     def __init__(self, path, n_frames=50, threshold=40, verify=True):
         self.base_path = Path(path)
         self.capture = VideoCapture(str(path))
-        if THREADED_CAPTURE:
-            self.capture.start()
 
         self.frame_count = int(self.capture.get(cv2.CAP_PROP_FRAME_COUNT))
         self.height = int(self.capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -247,8 +243,6 @@ class Tracker:
 
         # Open capture
         self.capture = VideoCapture(str(self.base_path))
-        if THREADED_CAPTURE:
-            self.capture.start()
 
         self.frame_count = int(self.capture.get(cv2.CAP_PROP_FRAME_COUNT))
         self.height = int(self.capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -292,6 +286,7 @@ class Tracker:
         self.store_results()
 
     def find_led_pos(self, verify):
+        print('Attempting to automatically detect LED...')
         com = LED_Finder(self.base_path, verify=verify).com
         print(f'Found LED at x={com[1]}, y={com[0]}')
         return com

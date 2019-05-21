@@ -1,15 +1,12 @@
 import cv2
-import threading
 import numpy as np
 from scipy import signal
 import matplotlib.pyplot as plt
 import matplotlib
-from matplotlib import cm
 from matplotlib.collections import LineCollection
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from pathlib import Path
-from tqdm import tqdm
 from math import sqrt
 from collections import namedtuple
 from tqdm.auto import tqdm

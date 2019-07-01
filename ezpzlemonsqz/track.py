@@ -238,13 +238,11 @@ class TrackResult:
 
 
 class Tracker:
-    def __init__(self, path, led_pos=None, start_offset=0, limit_frames=None, display=False, write_annotated=False,
+    def __init__(self, path, led_pos=None, start_offset=0, duration=None, display=False, write_annotated=False,
                  user_verify=True, threshold=TRACK_THRESHOLD, min_area=TRACK_MIN_AREA):
         self.base_path = Path(path)
         if not self.base_path.exists():
             raise FileNotFoundError('Can not find target {}'.format(self.base_path))
-        self.start_offset = 0
-        self.limit_frames = limit_frames
         self.min_area = min_area
         self.threshold = threshold
         self.display = display
@@ -260,6 +258,9 @@ class Tracker:
         self.height = int(self.capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
         self.width = int(self.capture.get(cv2.CAP_PROP_FRAME_WIDTH))
         self.fps = self.capture.get(cv2.CAP_PROP_FPS)
+
+        self.start_offset = int(start_offset * self.fps)
+        self.limit_frames = self.frame_count if duration is None else int(duration * self.fps)
 
         # Write annotated frames to disk?
         self.writer = None
@@ -321,6 +322,8 @@ class Tracker:
         if self.limit_frames is not None:
             end = min(self.start_offset + self.limit_frames, self.frame_count)
 
+        self.capture.set(cv2.CAP_PROP_POS_FRAMES, float(self.start_offset))
+
         for n in tqdm(range(self.start_offset, end)):
             current_frame_pos = self.capture.get(cv2.CAP_PROP_POS_FRAMES)
             current_msec_pos = self.capture.get(cv2.CAP_PROP_POS_MSEC)
@@ -367,9 +370,9 @@ class Tracker:
             result.led_brightness = led_brightness
 
             # after Nth frame calculate the two peaks in the brightness histogram
-            if n == 1000:
-                # print('Calculating the LED level distributon')
-                led = [self.results[n].led_brightness for n in range(100)]
+            if n == min((1000, self.limit_frames // 2)) + self.start_offset:
+                tqdm.write('Calculating the LED level distributon')
+                led = [self.results[n + self.start_offset].led_brightness for n in range(100)]
                 led = [brightness for brightness in led if brightness > 0]
                 self.led_lo = np.percentile(led, 10)
                 self.led_hi = np.percentile(led, 90)
@@ -387,7 +390,6 @@ class Tracker:
             # Handle display or writing of annotated frames
             if self.display or self.writer:
                 ann = frame  # optionally make a copy
-
                 # frame number
                 font_size = 1
                 cv2.putText(ann, f'Frame: {n}', (25, 25), self.font, font_size, (255, 255, 255), 1, cv2.LINE_AA)
@@ -426,7 +428,7 @@ class Tracker:
                     cv2.imshow('frame', frame)
                     cv2.imshow('masked', masked)
                     cv2.imshow('thr', cleaned)
-                    if cv2.waitKey(30) > 0:
+                    if cv2.waitKey(25) > 0:
                         break
 
     def store_results(self):
@@ -447,7 +449,7 @@ class Tracker:
 def pos_from_results(results):
     # POSITION DATA
     xs = np.array([result.cx for result in results.values()], dtype=np.float)
-    ys = np.array([result.cx for result in results.values()], dtype=np.float)
+    ys = np.array([result.cy for result in results.values()], dtype=np.float)
 
     # Estimate arena bounds from position extrema
     maze_start = Point(np.nanmin(xs), np.nanmin(ys))
@@ -482,13 +484,13 @@ def speed_from_pos(positions, fps):
 
 
 def figure_from_tracker(tracker):
-    positions, xs, ys = pos_from_results(tracker.results)
-    t, positions, pos_filtered = clean_positions(positions)
+    positions_raw, xs, ys = pos_from_results(tracker.results)
+    t, positions, pos_filtered = clean_positions(positions_raw)
     speed = speed_from_pos(pos_filtered, 30.)
 
     led_threshold = (tracker.led_lo + tracker.led_hi) / 2
-    led_ts = np.array([res.ts / 1000 for res in tracker.results.values()])
-    led_values = np.array([res.led_brightness for res in tracker.results.values()])
+    led_ts = np.array([res.ts / 1000 for res in tracker.results.values() if res.tracked])
+    led_values = np.array([res.led_brightness for res in tracker.results.values() if res.tracked])
     led_thresholded = (led_values > led_threshold).astype(np.float)
     if not np.sum(led_thresholded):
         raise ValueError('No LED blinking detected. Threshold too high?')
@@ -596,14 +598,30 @@ def figure_from_tracker(tracker):
     #     plt.tight_layout()
     fig.savefig(tracker.base_path.with_suffix('.plot.png'))
 
+    fig, ax = plt.subplots(figsize=(40, 6))
+    ax.plot(positions_raw)
+    fig.savefig(tracker.base_path.with_suffix('.positionplot.png'))
+
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('path', help='Path to video')
+    parser.add_argument('-d', '--display', help='Display tracking result', action='store_true')
+    parser.add_argument('--dump', help='Dump tracking results to pickle file', action='store_true')
+    parser.add_argument('-O', '--offset', help='Start offset to skip initial time (s)', type=float, default=0)
+    parser.add_argument('-D', '--duration', help='Limit tracking duration (s)', type=float, default=None)
+    parser.add_argument('-Y', '--no_verify', help='Do not ask for user feedback on e.g. mask', action='store_false')
+    parser.add_argument('-T', '--threshold', help='Threshold for blob detection, default: {}'.format(TRACK_THRESHOLD),
+                        default=TRACK_THRESHOLD, type=int)
     cli_args = parser.parse_args()
 
-    tracker = Tracker(cli_args.path)
+    tracker = Tracker(cli_args.path, display=cli_args.display, start_offset=cli_args.offset,
+                      duration=cli_args.duration, user_verify=cli_args.no_verify, threshold=cli_args.threshold)
     figure_from_tracker(tracker)
+    if cli_args.dump:
+        import pickle
+        with open(tracker.base_path.with_suffix('.results.pkl'), 'wb') as pklf:
+            pickle.dump(tracker.results, pklf)
 
 
 if __name__ == '__main__':

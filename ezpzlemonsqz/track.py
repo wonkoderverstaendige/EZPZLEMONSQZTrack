@@ -54,6 +54,18 @@ def centroid(cnt):
     return cx, cy
 
 
+def find_largest_contour(contours, min_area=100):
+    largest_area = 0
+    largest_cnt = None
+    for cnt in contours:
+        area = int(cv2.contourArea(cnt))
+        if area > min_area:
+            if area > largest_area:
+                largest_area = area
+                largest_cnt = cnt
+    return largest_area, largest_cnt
+
+
 class MaskGenerator:
     def __init__(self, path):
         self.path = Path(path)
@@ -335,18 +347,19 @@ class Tracker:
             result.contours = contours
 
             # Among contours above the minimimum area, find the largest one
-            largest_area = 0
-            for cnt in contours:
-                area = int(cv2.contourArea(cnt))
-                if area > self.min_area:
-                    if area > largest_area:
-                        result.largest_area = area
-                        result.largest_cnt = cnt
+            # largest_area = 0
+            # for cnt in contours:
+            #     area = int(cv2.contourArea(cnt))
+            #     if area > self.min_area:
+            #         if area > largest_area:
+            #             result.largest_area = area
+            #             result.largest_cnt = cnt
+            result.largest_area, result.largest_cnt = find_largest_contour(contours, min_area=self.min_area)
 
+            result.tracked = True
             if result.largest_cnt is not None:
                 result.detected = True
                 result.cx, result.cy = centroid(result.largest_cnt)
-            result.tracked = True
 
             # LED value
             led_brightness = np.median(gray[self.led_pos.y - LED_ROI_SIZE:self.led_pos.y + LED_ROI_SIZE,

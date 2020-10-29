@@ -239,7 +239,7 @@ class TrackResult:
 
 class Tracker:
     def __init__(self, path, led_pos=None, start_offset=0, duration=None, display=False, write_annotated=False,
-                 user_verify=True, threshold=TRACK_THRESHOLD, min_area=TRACK_MIN_AREA):
+                 user_verify=True, threshold=TRACK_THRESHOLD, min_area=TRACK_MIN_AREA, forced_led_pos=None):
         self.base_path = Path(path)
         if not self.base_path.exists():
             raise FileNotFoundError('Can not find target {}'.format(self.base_path))
@@ -248,7 +248,15 @@ class Tracker:
         self.display = display
 
         # Gather information on video
-        self.led_pos = Point(*(led_pos if led_pos is not None else self.find_led_pos(verify=user_verify)))
+        if not forced_led_pos:
+            print('Attempting to automatically find the blinking LED')
+            self.led_pos = Point(*(led_pos if led_pos is not None else self.find_led_pos(verify=user_verify)))
+        else:
+            lx, ly = tuple(map(int, forced_led_pos.strip().split(':')))
+            print('Using forced LED position at x={}, y={}'.format(lx, ly))
+            self.led_pos = Point(lx, ly)
+
+        # Mask
         self.mask = self.get_mask()
 
         # Open capture
@@ -613,10 +621,12 @@ def main():
     parser.add_argument('-Y', '--no_verify', help='Do not ask for user feedback on e.g. mask', action='store_false')
     parser.add_argument('-T', '--threshold', help='Threshold for blob detection, default: {}'.format(TRACK_THRESHOLD),
                         default=TRACK_THRESHOLD, type=int)
+    parser.add_argument('-L', '--ledpos', help='LED position as x:y pair, e.g. 220:150', type=str)
     cli_args = parser.parse_args()
 
     tracker = Tracker(cli_args.path, display=cli_args.display, start_offset=cli_args.offset,
-                      duration=cli_args.duration, user_verify=cli_args.no_verify, threshold=cli_args.threshold)
+                      duration=cli_args.duration, user_verify=cli_args.no_verify, threshold=cli_args.threshold,
+                      forced_led_pos=cli_args.ledpos)
     figure_from_tracker(tracker)
     if cli_args.dump:
         import pickle

@@ -605,10 +605,12 @@ def figure_from_tracker(tracker):
 
     #     plt.tight_layout()
     fig.savefig(tracker.base_path.with_suffix('.plot.png'))
+    fig.savefig(tracker.base_path.with_suffix('.plot.svg'))
 
     fig, ax = plt.subplots(figsize=(40, 6))
     ax.plot(positions_raw)
     fig.savefig(tracker.base_path.with_suffix('.positionplot.png'))
+    fig.savefig(tracker.base_path.with_suffix('.positionplot.svg'))
 
 
 def main():
